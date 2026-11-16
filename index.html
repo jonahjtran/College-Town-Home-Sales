@@ -1,31 +1,95 @@
 <!DOCTYPE html>
-<!-- A placeholder from the Home Sales template. Replace this file with your site's first page. -->
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Under construction</title>
+  <title>College-Town Home Sales Map</title>
+  <meta name="description" content="A map of home sales around 11 university campuses, colored by sale price or distance to campus.">
   <!-- An empty icon, so the browser doesn't log an error looking for favicon.ico -->
   <link rel="icon" href="data:,">
-  <style>
-    :root { color-scheme: light dark; }
-    body {
-      max-width: 40rem;
-      margin: 0 auto;
-      padding: 3rem 1rem;
-      font-family: system-ui, sans-serif;
-      line-height: 1.5;
-    }
-    footer { margin-top: 3rem; font-size: 0.875rem; opacity: 0.75; }
-  </style>
+  <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+  <link rel="preconnect" href="https://tile.openstreetmap.org" crossorigin>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"
+        integrity="sha384-c6Rcwz4e4CITMbu/NBmnNS8yN2sC3cUElMEMfP3vqqKFp7GOYaaBBCqmaWBjmkjb" crossorigin="anonymous">
+  <link rel="stylesheet" href="css/site.css">
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"
+          integrity="sha384-NElt3Op+9NBMCYaef5HxeJmU4Xeard/Lku8ek6hoPTvYkQPh3zLIrJP7KiRocsxO" crossorigin="anonymous"></script>
+  <script defer src="js/map.js"></script>
 </head>
 <body>
-  <main>
-    <h1>This site is under construction</h1>
-    <p>It will show findings from the College-town home sales dataset.</p>
+  <header class="site-header">
+    <div class="wrap">
+      <h1>College-Town Home Sales</h1>
+      <p class="lede">Where homes sold around 11 university campuses, and what they sold for.</p>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <form class="controls" aria-label="Map options" onsubmit="return false">
+      <div class="field">
+        <label for="campus">Campus</label>
+        <select id="campus" disabled>
+          <option>Loading…</option>
+        </select>
+      </div>
+      <fieldset class="field">
+        <legend>Color homes by</legend>
+        <div class="segmented">
+          <input type="radio" name="mode" id="mode-price" value="price" checked>
+          <label for="mode-price">Sale price</label>
+          <input type="radio" name="mode" id="mode-miles" value="miles">
+          <label for="mode-miles">Distance to campus</label>
+        </div>
+      </fieldset>
+    </form>
+
+    <section class="tiles" aria-label="Summary for the selected campus" aria-live="polite">
+      <div class="tile">
+        <div class="tile-label">Sales shown</div>
+        <div class="tile-value" id="stat-sales">–</div>
+        <div class="tile-note" id="stat-cities">&nbsp;</div>
+      </div>
+      <div class="tile">
+        <div class="tile-label">Median sale price</div>
+        <div class="tile-value" id="stat-price">–</div>
+        <div class="tile-note">Half sold for less, half for more</div>
+      </div>
+      <div class="tile">
+        <div class="tile-label">Median price per sq ft</div>
+        <div class="tile-value" id="stat-ppsf">–</div>
+        <div class="tile-note" id="stat-ppsf-note">&nbsp;</div>
+      </div>
+      <div class="tile">
+        <div class="tile-label">Median distance to campus</div>
+        <div class="tile-value" id="stat-miles">–</div>
+        <div class="tile-note" id="stat-miles-note">&nbsp;</div>
+      </div>
+    </section>
+
+    <section class="card" aria-labelledby="map-title">
+      <div class="card-head">
+        <h2 id="map-title">Homes sold</h2>
+        <div class="legend" id="legend" aria-label="Map color key"></div>
+      </div>
+      <div class="map-frame">
+        <div id="map" role="region" aria-label="Map of home sales around the selected campus"></div>
+        <div class="map-status" id="map-status" role="status">Loading sales…</div>
+      </div>
+      <p class="card-foot" id="map-note">&nbsp;</p>
+    </section>
+
+    <section class="notes" aria-labelledby="notes-title">
+      <h2 id="notes-title">About these numbers</h2>
+      <ul id="notes-list">
+        <li>Each dot is one completed sale. Hover over or tap a dot for its details.</li>
+      </ul>
+    </section>
   </main>
-  <footer>
-    <p>Data: College-town home sales dataset, version 1.0 (2026). University of Illinois-Deloitte Foundation Center for Business Emerging Technologies. Data collected March 2026.</p>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <p>Data: College-town home sales dataset, version 1.0 (2026). University of Illinois-Deloitte Foundation Center for Business Emerging Technologies. Data collected March 2026.</p>
+    </div>
   </footer>
 </body>
 </html>
