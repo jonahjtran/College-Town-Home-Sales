@@ -38,6 +38,24 @@ https://your-username.github.io/your-repo-name/
 
 _Replace this line. Say which rows you left out and why, and how each figure on the site is defined. "Five things that will bite you" in the description sheet lists the problems to cover._
 
+## How the site's data files are made
+
+The site never loads the full 9 MB CSV. `scripts/build_map_data.py` reads `data/college_town_home_sales.csv` and writes small files to `data/derived/`:
+
+| File | What it holds |
+|---|---|
+| `manifest.json` | The 11 campuses, their sale counts and map positions, and the filter rules with the number of rows each removed |
+| `points_<campus>.json` | One file per campus, with each sale's coordinates, price, distance to campus, bedrooms, living area and sale year |
+| `distance_bands.json` | For each campus, the number of sales, median price and median price per square foot in each distance band |
+
+To rebuild them, run this from the repository root. It needs Python 3.9 or later with pandas and numpy, and it writes identical files each time:
+
+```
+python3 scripts/build_map_data.py
+```
+
+The script keeps sales priced from $1,000 to $5,000,000, which leaves out 35 of the 35,442 rows (4 under $1,000 and 31 over $5,000,000). Price per square foot is computed only where the living area is above 0. The dataset doesn't give campus coordinates, so the script works out each campus landmark's position from the homes' coordinates and their `miles_to_campus` values.
+
 ## Tools we used
 
 _Replace this line with your AI coding agent or agents, and any libraries and other tools you used._
