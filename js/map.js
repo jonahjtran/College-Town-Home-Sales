@@ -38,7 +38,12 @@
     ppsf: document.getElementById('stat-ppsf'),
     ppsfNote: document.getElementById('stat-ppsf-note'),
     miles: document.getElementById('stat-miles'),
-    milesNote: document.getElementById('stat-miles-note')
+    milesNote: document.getElementById('stat-miles-note'),
+    chart: document.getElementById('chart'),
+    chartTip: document.getElementById('chart-tip'),
+    chartLede: document.getElementById('chart-lede'),
+    chartPin: document.getElementById('chart-pin'),
+    chartTable: document.getElementById('chart-table')
   };
 
   var state = {
@@ -46,6 +51,12 @@
     campus: null,   // the manifest entry being viewed
     points: null,   // its points file
     mode: 'price',
+    bandsFile: null, // distance_bands.json
+    metric: 'price', // what the chart measures: 'price' or 'ppsf'
+    pinned: null,    // index of the distance band clicked in the chart, or null
+    preview: null,   // index of the band being hovered in the chart, or null
+    markers: null,   // the map dots, in the same order as the points file
+    dimmed: false,   // whether any dots are currently faded
     cache: {},      // slug -> promise of a points file
     request: 0      // guards against a slow file arriving after a newer choice
   };
@@ -170,6 +181,8 @@
     }
 
     hovered = null;
+    state.markers = markers;
+    state.dimmed = false;
     if (dotLayer) dotLayer.remove();
     dotLayer = L.featureGroup(markers)
       .on('mouseover', function (e) {
@@ -188,6 +201,71 @@
           .openOn(map);
       })
       .addTo(map);
+    highlightBand();
+  }
+
+  /* ---------- the distance chart, and its link to the map ---------- */
+
+  function campusBands() {
+    return state.bandsFile && state.campus ? state.bandsFile.campuses[state.campus.slug] : null;
+  }
+
+  /* Fades every dot outside the band hovered or clicked in the chart. */
+  function highlightBand() {
+    var bands = campusBands();
+    var active = state.preview !== null ? state.preview : state.pinned;
+    if (!bands || !state.markers || !state.points) return;
+    if (active === null && !state.dimmed) return;
+    var band = active === null ? null : bands[active];
+    var miles = state.points.miles;
+    for (var i = 0; i < state.markers.length; i++) {
+      var inBand = !band || (miles[i] >= band.min_miles && (band.max_miles === null || miles[i] < band.max_miles));
+      state.markers[i].setStyle(inBand ? { opacity: 1, fillOpacity: 0.9 } : { opacity: 0.06, fillOpacity: 0.06 });
+    }
+    state.dimmed = band !== null;
+  }
+
+  function drawPinNote() {
+    var bands = campusBands();
+    if (state.pinned === null || !bands) {
+      el.chartPin.textContent = 'Hover over a distance band to highlight its homes on the map. Click it to keep them highlighted.';
+      return;
+    }
+    el.chartPin.innerHTML = 'The map is highlighting homes ' + bands[state.pinned].label +
+      ' from campus. <button type="button" class="link-button" id="chart-clear">Show all homes</button>';
+    document.getElementById('chart-clear').addEventListener('click', function () { pinBand(state.pinned); });
+  }
+
+  function pinBand(i) {
+    state.pinned = state.pinned === i ? null : i;
+    state.preview = null;
+    drawChart();
+    highlightBand();
+  }
+
+  function drawChart() {
+    var bands = campusBands();
+    if (!bands) return;
+    var thin = state.bandsFile.thin_below_sales;
+    el.chartLede.textContent = BandChart.headline(bands, state.metric, thin) ||
+      'Too few distance bands have enough sales to compare.';
+    el.chartTable.innerHTML = BandChart.tableHtml(bands, state.metric, thin);
+    el.chartTip.hidden = true;
+    BandChart.render({
+      host: el.chart,
+      tip: el.chartTip,
+      bands: bands,
+      metric: state.metric,
+      thinBelow: thin,
+      pinned: state.pinned,
+      onPreview: function (i) {
+        if (state.preview === i) return;
+        state.preview = i;
+        highlightBand();
+      },
+      onPin: pinBand
+    });
+    drawPinNote();
   }
 
   function drawCampus(fit) {
@@ -235,6 +313,9 @@
         ' sales across all campuses (' + f.removed_price_below_min + ' under, ' + f.removed_price_above_max + ' over).',
       'The five price colors split each campus’s sales into fifths, so the price ranges change from campus to campus.',
       'Price per square foot uses only sales with a living area above 0.',
+      'In the chart, each distance band includes its lower edge and not its upper edge, so a home exactly 1 mile ' +
+        'out counts in the 1\u20132 mile band. Bands with fewer than ' + (state.bandsFile ? state.bandsFile.thin_below_sales : 30) +
+        ' sales show a dash, because a median of a handful of homes says little.',
       'Distance is the straight-line distance to one landmark on each campus, not driving distance. The dataset lists ' +
         'each home’s distance but not the landmark’s position, so the campus marker is worked out from those distances.',
       'Each sale belongs to its nearest campus, whatever city is in its address.'
@@ -262,8 +343,12 @@
     el.campus.value = slug;
     if (location.hash !== '#' + slug) history.replaceState(null, '', '#' + slug);
 
+    state.pinned = null;
+    state.preview = null;
+    state.markers = null;
     drawSummary();
     drawLegend();
+    drawChart();
     map.closePopup();
     if (dotLayer) { dotLayer.remove(); dotLayer = null; }
     drawCampus(true);
@@ -282,8 +367,10 @@
 
   function start() {
     initMap();
-    getJson('manifest.json').then(function (manifest) {
+    Promise.all([getJson('manifest.json'), getJson('distance_bands.json')]).then(function (files) {
+      var manifest = files[0];
       state.manifest = manifest;
+      state.bandsFile = files[1];
       var campuses = manifest.campuses.slice().sort(function (a, b) {
         return a.short_name.localeCompare(b.short_name);
       });
@@ -311,6 +398,21 @@
         if (state.points && state.points.campus === state.campus.slug) drawDots();
       });
     });
+    document.querySelectorAll('input[name="metric"]').forEach(function (input) {
+      input.addEventListener('change', function () {
+        if (!input.checked) return;
+        state.metric = input.value;
+        drawChart();
+      });
+    });
+    // The chart is drawn to the pixel width of its box, so redraw when that changes.
+    var chartWidth = 0;
+    new ResizeObserver(function () {
+      var w = Math.floor(el.chart.clientWidth);
+      if (w === chartWidth) return;
+      chartWidth = w;
+      drawChart();
+    }).observe(el.chart);
     window.addEventListener('hashchange', function () {
       var slug = location.hash.slice(1);
       if (state.manifest && state.campus && slug !== state.campus.slug) selectCampus(slug);
